@@ -48,7 +48,7 @@ variables:
 # Config parameters for ManafalnTaskConfig
 app:
   # Model (pretrained checkpoint) configurations
-  model_path: best_FL_global_model.pt # should locate in radiology/model dir
+  model_path: best_FL_pancreas_model.pt # should locate in radiology/model dir
   model_type: checkpoint # checkpoint or torchscript
   model_state_dict: model
 

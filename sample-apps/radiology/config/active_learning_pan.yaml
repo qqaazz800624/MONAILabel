@@ -3,6 +3,7 @@ variables:
   # Inferer setting (for infer & validation)
   dim: &dim 3
   roi_size: &roi_size [128, 128, 128]
+  #roi_size: &roi_size [96, 96, 96]
   inferer: &inferer
     name: SlidingWindowInferer
     args:
@@ -14,7 +15,7 @@ variables:
   # Model parameters
   model: &model
     name: mednext_base
-    path: manafaln.models
+    path: custom.mednext
     args:
       spatial_dims: 3
       in_channels: 1
@@ -52,7 +53,7 @@ variables:
   spacing: &spacing [1.5, 1.5, 1.5]
 
   # Active learning parameters
-  num_samples: &num_samples 4
+  num_samples: &num_samples 2
   batch_size: &batch_size 2
 
 # Config parameters for ManafalnTaskConfig
@@ -87,20 +88,20 @@ task_infer:
   - name: LoadImaged
     args:
       keys: [image]
-      image_only: True
+      #image_only: True
   - name: EnsureChannelFirstd
     args:
       keys: [image]
   - name: Orientationd
     args:
       keys: [image]
-      as_closest_canonical: True
+      axcodes: RAS
   - name: Spacingd
     args:
       keys: [image]
       pixdim: *spacing
-      mode: [bilinear]
-  - name: NormalizeIntensityRanged
+      #mode: [bilinear]
+  - name: NormalizeIntensityd
     args:
       keys: [image]
   - name: EnsureTyped
@@ -110,20 +111,22 @@ task_infer:
   inv_transforms: []
 
   post_transforms:
+  - name: EnsureTyped
+    args:
+      keys: [pred]
+  - name: Activationsd
+    args:
+      keys: [pred]
+      softmax: True
   - name: AsDiscreted
     args:
       keys: [pred]
       argmax: True
-  - name: KeepLargestConnectedComponentd
+  - name: Restored
+    path: monailabel.transform.post
     args:
-      keys: [preds]
-      is_onehot: False
-      independent: False
-  # - name: Restored
-  #   path: monailabel.transform.post
-  #   args:
-  #     keys: [pred]
-  #     ref_image: image
+      keys: [pred]
+      ref_image: image
 
 # Config parameters for ManafalnTrainTask
 task_train:
@@ -180,18 +183,18 @@ task_train:
       args:
         keys: [image, label]
         image_only: True
-    # - name: NormalizeLabelsd
-    #   path: custom.transforms
-    #   args:
-    #     keys: [label]
-    #     label_names: *labels
+    - name: NormalizeLabelsd
+      path: manafaln.adapters.monailabel.transforms
+      args:
+        keys: [label]
+        label_names: *labels
     - name: EnsureChannelFirstd
       args:
         keys: [image, label]
     - name: Orientationd
       args:
         keys: [image, label]
-        as_closest_canonical: true
+        axcodes: RAS
     - name: Spacingd
       args:
         keys: [image, label]
@@ -214,13 +217,9 @@ task_train:
         max_zoom: 1.4
         mode: [trilinear, nearest]
         keep_size: False
-    - name: NormalizeIntensityRanged
+    - name: NormalizeIntensityd
       args:
         keys: [image]
-        # a_min: *intensity_min
-        # a_max: *intensity_max
-        # subtrahend: *intensity_mean
-        # divisor: *intensity_std
     - name: SpatialPadd
       args:
         keys: [image, label]
@@ -276,30 +275,29 @@ task_train:
     - name: EnsureTyped
       args:
         keys: [image, label]
-    # - name: SelectItemsd
-    #   args:
-    #     keys: [image, label]
+    - name: SelectItemsd
+      args:
+        keys: [image, label]
 
     post_transforms:
     - name: ToTensord
       args:
         keys: [pred, label]
     - name: RemoveDsHeadsd
-      path: custom.transforms
+      path: manafaln.adapters.monailabel.transforms
       args:
         keys: [pred]
         dim: 0
-    # - name: Activationsd
-    #   args:
-    #     keys: [pred]
-    #     softmax: True
-    - name: AsDiscreted
-      path: monai.transforms
+    - name: Activationsd
       args:
-        keys: [preds, label]
+        keys: [pred]
+        softmax: True
+    - name: AsDiscreted
+      args:
+        keys: [pred, label]
         argmax: [True, False]
-        to_onehot: [16, 16]
-        dim: 1
+        to_onehot: 16
+        #dim: 1
 
   # Validation transforms
   validation:
@@ -308,52 +306,47 @@ task_train:
       args:
         keys: [image, label]
         image_only: True
-    # - name: NormalizeLabelsd
-    #   path: custom.transforms
-    #   args:
-    #     keys: [label]
-    #     label_names: *labels
+    - name: NormalizeLabelsd
+      path: manafaln.adapters.monailabel.transforms
+      args:
+        keys: [label]
+        label_names: *labels
     - name: EnsureChannelFirstd
       args:
         keys: [image, label]
     - name: Orientationd
       args:
         keys: [image, label]
-        as_closest_canonical: True
+        axcodes: RAS
     - name: Spacingd
       args:
         keys: [image, label]
         pixdim: *spacing
         mode: [bilinear, nearest]
-    - name: NormalizeIntensityRanged
+    - name: NormalizeIntensityd
       args:
         keys: [image]
-        # a_min: *intensity_min
-        # a_max: *intensity_max
-        # subtrahend: *intensity_mean
-        # divisor: *intensity_std
     - name: EnsureTyped
       args:
         keys: [image, label]
-    # - name: SelectItemsd
-    #   args:
-    #     keys: [image, label]
+    - name: SelectItemsd
+      args:
+        keys: [image, label]
 
     post_transforms:
-    # - name: ToTensord
-    #   args:
-    #     keys: [pred, label]
-    # - name: Activationsd
-    #   args:
-    #     keys: [pred]
-    #     softmax: True
-    - name: AsDiscreted
-      path: monai.transforms
+    - name: ToTensord
       args:
-        keys: [preds, label]
+        keys: [pred, label]
+    - name: Activationsd
+      args:
+        keys: [pred]
+        softmax: True
+    - name: AsDiscreted
+      args:
+        keys: [pred, label]
         argmax: [True, False]
-        to_onehot: [16, 16]
-        dim: 1
+        to_onehot: 16
+        # dim: 1
     # - name: SplitDimd
     #   args:
     #     keys: [preds, label]
@@ -381,7 +374,7 @@ task_train:
     name: HybridCacheDataset
     args:
       cache_rate: 1.0
-      num_workers: 8
+      num_workers: 4
 
   dataloader:
     name: DataLoader
